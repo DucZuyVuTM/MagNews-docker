@@ -1,0 +1,68 @@
+services:
+  # --- 1. Frontend service ---
+  frontend:
+    # Use Dockerfile in the ./frontend directory
+    build: 
+      context: ./frontend
+    # Frontend portal for internal communication
+    expose:
+      - "5173"
+    container_name: app_frontend
+    # Used for development to automatically reload
+    volumes:
+      - ./frontend:/app
+    # Start command
+    command: sh -c "npm install && npm run dev"
+
+  # --- 2. Backend service ---
+  backend:
+    # Use Dockerfile in the ./backend directory
+    build:
+      context: ./backend
+    # Backend portal for internal communication
+    expose:
+      - "8000"
+    container_name: app_backend
+    # Used for development to automatically reload
+    volumes:
+      - ./backend:/app
+    # Start command
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    # Backend depends on Database
+    depends_on:
+      - db
+
+  # --- 3. Nginx Reverse Proxy ---
+  nginx:
+    image: nginx:stable-alpine
+    container_name: app_nginx_proxy
+    # Map container port 80 to host port 80 (WSL/Windows)
+    ports:
+      - "80:80"
+    # Append the nginx/nginx.conf configuration file to the default Nginx configuration location
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    # Make sure Nginx starts after Frontend and Backend
+    depends_on:
+      - frontend
+      - backend
+
+  # --- 4. Database Service ---
+  db:
+    # Use standard Postgres image
+    image: postgres:14-alpine
+    container_name: app_postgres_db
+    # Environment variables for the database
+    environment:
+      POSTGRES_DB: subscriptions_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    # Mount volumes for persistent data storage
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+# Define Volume for long-term database data storage
+volumes:
+  postgres_data:
